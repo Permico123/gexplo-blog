@@ -23,18 +23,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Campos requeridos faltantes: title, slug, content, keyIdea' }, { status: 400 });
   }
 
-  const post = await createPost({
-    title: body.title,
-    subtitle: body.subtitle || '',
-    slug: body.slug,
-    keyIdea: body.keyIdea,
-    content: body.content,
-    coverImage: body.coverImage || '',
-    tags: Array.isArray(body.tags) ? body.tags : [],
-    weekNumber: Number(body.weekNumber) || 1,
-    status: body.status || 'DRAFT',
-    publishedAt: body.publishedAt || undefined,
-  });
-
-  return NextResponse.json(post, { status: 201 });
+  try {
+    const post = await createPost({
+      title: body.title,
+      subtitle: body.subtitle || '',
+      slug: body.slug,
+      keyIdea: body.keyIdea,
+      content: body.content,
+      coverImage: body.coverImage || '',
+      tags: Array.isArray(body.tags) ? body.tags : [],
+      weekNumber: Number(body.weekNumber) || 1,
+      status: body.status || 'DRAFT',
+      publishedAt: body.publishedAt || undefined,
+    });
+    return NextResponse.json(post, { status: 201 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error interno del servidor';
+    console.error('[api/posts] POST error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
