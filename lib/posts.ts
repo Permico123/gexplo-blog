@@ -96,23 +96,31 @@ export async function getPostById(id: string): Promise<Post | undefined> {
 
 export async function createPost(input: PostInput): Promise<Post> {
   const supabase = createAdminClient();
-  const now = new Date().toISOString();
-  const row = {
-    ...postInputToRow(input),
-    created_at: now,
-    updated_at: now,
-  };
 
+  // Use RPC to bypass PostgREST schema cache issues with column recognition
   const { data, error } = await supabase
-    .from('posts')
-    .insert(row)
-    .select()
-    .single();
+    .rpc('create_post', {
+      p_title: input.title,
+      p_subtitle: input.subtitle || '',
+      p_slug: input.slug,
+      p_key_idea: input.keyIdea,
+      p_content: input.content,
+      p_cover_image: input.coverImage || '',
+      p_tags: input.tags || [],
+      p_week_number: input.weekNumber || 1,
+      p_status: input.status || 'DRAFT',
+      p_published_at: input.publishedAt || null,
+    });
 
-  if (error || !data) {
-    throw new Error(`[posts] createPost error: ${error?.message ?? 'no data returned'}`);
+  if (error) {
+    throw new Error(`[posts] createPost error: ${error.message}`);
   }
-  return rowToPost(data);
+
+  const rows = data as Record<string, unknown>[] | null;
+  if (!rows || rows.length === 0) {
+    throw new Error('[posts] createPost error: no data returned');
+  }
+  return rowToPost(rows[0]);
 }
 
 export async function updatePost(id: string, input: Partial<PostInput>): Promise<Post | null> {
