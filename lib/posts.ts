@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import { createAdminClient } from './supabase';
 import { Post, PostInput, PostStatus } from './types';
 
 // ─── Row → Post mapper ───────────────────────────────────────────────────────
@@ -26,12 +26,13 @@ function rowToPost(row: Record<string, any>): Post {
 
 export async function getAllPosts(): Promise<Post[]> {
   try {
-    const sql = getDb();
-    const rows = await sql`
-      SELECT * FROM posts
-      ORDER BY week_number DESC
-    `;
-    return rows.map(rowToPost);
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .order('week_number', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(rowToPost);
   } catch (err) {
     console.error('[posts] getAllPosts error:', err);
     return [];
@@ -40,13 +41,14 @@ export async function getAllPosts(): Promise<Post[]> {
 
 export async function getPublishedPosts(): Promise<Post[]> {
   try {
-    const sql = getDb();
-    const rows = await sql`
-      SELECT * FROM posts
-      WHERE status = 'PUBLISHED'
-      ORDER BY week_number DESC
-    `;
-    return rows.map(rowToPost);
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('status', 'PUBLISHED')
+      .order('week_number', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(rowToPost);
   } catch (err) {
     console.error('[posts] getPublishedPosts error:', err);
     return [];
@@ -55,14 +57,15 @@ export async function getPublishedPosts(): Promise<Post[]> {
 
 export async function getPostBySlug(slug: string): Promise<Post | undefined> {
   try {
-    const sql = getDb();
-    const rows = await sql`
-      SELECT * FROM posts
-      WHERE slug = ${slug}
-      LIMIT 1
-    `;
-    if (!rows.length) return undefined;
-    return rowToPost(rows[0]);
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return undefined;
+    return rowToPost(data);
   } catch (err) {
     console.error('[posts] getPostBySlug error:', err);
     return undefined;
@@ -71,14 +74,15 @@ export async function getPostBySlug(slug: string): Promise<Post | undefined> {
 
 export async function getPostById(id: string): Promise<Post | undefined> {
   try {
-    const sql = getDb();
-    const rows = await sql`
-      SELECT * FROM posts
-      WHERE id = ${id}::uuid
-      LIMIT 1
-    `;
-    if (!rows.length) return undefined;
-    return rowToPost(rows[0]);
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return undefined;
+    return rowToPost(data);
   } catch (err) {
     console.error('[posts] getPostById error:', err);
     return undefined;
@@ -86,41 +90,36 @@ export async function getPostById(id: string): Promise<Post | undefined> {
 }
 
 export async function createPost(input: PostInput): Promise<Post> {
-  const sql = getDb();
-  const rows = await sql`
-    INSERT INTO posts (
-      title, subtitle, slug, key_idea, content,
-      cover_image, tags, week_number, status, published_at
-    )
-    VALUES (
-      ${input.title},
-      ${input.subtitle || null},
-      ${input.slug},
-      ${input.keyIdea},
-      ${input.content},
-      ${input.coverImage || null},
-      ${input.tags || []},
-      ${input.weekNumber ?? 1},
-      ${input.status || 'DRAFT'},
-      ${input.publishedAt || null}
-    )
-    RETURNING *
-  `;
-  if (!rows.length) {
-    throw new Error('[posts] createPost error: no data returned');
-  }
-  return rowToPost(rows[0]);
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('posts')
+    .insert({
+      title: input.title,
+      subtitle: input.subtitle || null,
+      slug: input.slug,
+      key_idea: input.keyIdea,
+      content: input.content,
+      cover_image: input.coverImage || null,
+      tags: input.tags || [],
+      week_number: input.weekNumber ?? 1,
+      status: input.status || 'DRAFT',
+      published_at: input.publishedAt || null,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`[posts] createPost error: ${error.message}`);
+  return rowToPost(data);
 }
 
 export async function updatePost(
   id: string,
   input: Partial<PostInput>,
 ): Promise<Post | null> {
-  const sql = getDb();
+  const supabase = createAdminClient();
 
-  // Build a plain object with only the columns that were actually supplied.
-  // postgres.js's sql(obj) helper turns this into a safe "col = $n, …" clause.
-  const patch: Record<string, unknown> = { updated_at: new Date() };
+  // Build only the fields that were actually supplied
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const patch: Record<string, any> = { updated_at: new Date().toISOString() };
 
   if (input.title      !== undefined) patch.title       = input.title;
   if (input.subtitle   !== undefined) patch.subtitle    = input.subtitle   || null;
@@ -133,23 +132,25 @@ export async function updatePost(
   if (input.status     !== undefined) patch.status      = input.status;
   if (input.publishedAt !== undefined) patch.published_at = input.publishedAt || null;
 
-  const rows = await sql`
-    UPDATE posts
-    SET    ${sql(patch)}
-    WHERE  id = ${id}::uuid
-    RETURNING *
-  `;
+  const { data, error } = await supabase
+    .from('posts')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
 
-  if (!rows.length) return null;
-  return rowToPost(rows[0]);
+  if (error) {
+    console.error('[posts] updatePost error:', error);
+    return null;
+  }
+  return rowToPost(data);
 }
 
 export async function deletePost(id: string): Promise<boolean> {
   try {
-    const sql = getDb();
-    await sql`
-      DELETE FROM posts WHERE id = ${id}::uuid
-    `;
+    const supabase = createAdminClient();
+    const { error } = await supabase.from('posts').delete().eq('id', id);
+    if (error) throw error;
     return true;
   } catch (err) {
     console.error('[posts] deletePost error:', err);
