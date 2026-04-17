@@ -1,4 +1,4 @@
-import { createAdminClient } from './supabase';
+import { getDb } from './db';
 import { Post, PostInput, PostStatus } from './types';
 
 // ─── Row → Post mapper ───────────────────────────────────────────────────────
@@ -22,131 +22,137 @@ function rowToPost(row: Record<string, any>): Post {
   };
 }
 
-// ─── Post → DB row mapper ────────────────────────────────────────────────────
-
-function postInputToRow(input: Partial<PostInput>) {
-  const row: Record<string, unknown> = {};
-  if (input.title !== undefined) row.title = input.title;
-  if (input.subtitle !== undefined) row.subtitle = input.subtitle || null;
-  if (input.slug !== undefined) row.slug = input.slug;
-  if (input.keyIdea !== undefined) row.key_idea = input.keyIdea;
-  if (input.content !== undefined) row.content = input.content;
-  if (input.coverImage !== undefined) row.cover_image = input.coverImage || null;
-  if (input.tags !== undefined) row.tags = input.tags;
-  if (input.weekNumber !== undefined) row.week_number = input.weekNumber;
-  if (input.status !== undefined) row.status = input.status;
-  if (input.publishedAt !== undefined) row.published_at = input.publishedAt || null;
-  return row;
-}
-
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export async function getAllPosts(): Promise<Post[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('posts')
-    .select('*')
-    .order('week_number', { ascending: false });
-
-  if (error) {
-    console.error('[posts] getAllPosts error:', error.message);
+  try {
+    const sql = getDb();
+    const rows = await sql`
+      SELECT * FROM posts
+      ORDER BY week_number DESC
+    `;
+    return rows.map(rowToPost);
+  } catch (err) {
+    console.error('[posts] getAllPosts error:', err);
     return [];
   }
-  return (data ?? []).map(rowToPost);
 }
 
 export async function getPublishedPosts(): Promise<Post[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('posts')
-    .select('*')
-    .eq('status', 'PUBLISHED')
-    .order('week_number', { ascending: false });
-
-  if (error) {
-    console.error('[posts] getPublishedPosts error:', error.message);
+  try {
+    const sql = getDb();
+    const rows = await sql`
+      SELECT * FROM posts
+      WHERE status = 'PUBLISHED'
+      ORDER BY week_number DESC
+    `;
+    return rows.map(rowToPost);
+  } catch (err) {
+    console.error('[posts] getPublishedPosts error:', err);
     return [];
   }
-  return (data ?? []).map(rowToPost);
 }
 
 export async function getPostBySlug(slug: string): Promise<Post | undefined> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('posts')
-    .select('*')
-    .eq('slug', slug)
-    .single();
-
-  if (error || !data) return undefined;
-  return rowToPost(data);
+  try {
+    const sql = getDb();
+    const rows = await sql`
+      SELECT * FROM posts
+      WHERE slug = ${slug}
+      LIMIT 1
+    `;
+    if (!rows.length) return undefined;
+    return rowToPost(rows[0]);
+  } catch (err) {
+    console.error('[posts] getPostBySlug error:', err);
+    return undefined;
+  }
 }
 
 export async function getPostById(id: string): Promise<Post | undefined> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('posts')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error || !data) return undefined;
-  return rowToPost(data);
+  try {
+    const sql = getDb();
+    const rows = await sql`
+      SELECT * FROM posts
+      WHERE id = ${id}::uuid
+      LIMIT 1
+    `;
+    if (!rows.length) return undefined;
+    return rowToPost(rows[0]);
+  } catch (err) {
+    console.error('[posts] getPostById error:', err);
+    return undefined;
+  }
 }
 
 export async function createPost(input: PostInput): Promise<Post> {
-  const supabase = createAdminClient();
-
-  // Use RPC to bypass PostgREST schema cache issues with column recognition
-  const { data, error } = await supabase
-    .rpc('create_post', {
-      p_title: input.title,
-      p_subtitle: input.subtitle || '',
-      p_slug: input.slug,
-      p_key_idea: input.keyIdea,
-      p_content: input.content,
-      p_cover_image: input.coverImage || '',
-      p_tags: input.tags || [],
-      p_week_number: input.weekNumber || 1,
-      p_status: input.status || 'DRAFT',
-      p_published_at: input.publishedAt || null,
-    });
-
-  if (error) {
-    throw new Error(`[posts] createPost error: ${error.message}`);
-  }
-
-  const rows = data as Record<string, unknown>[] | null;
-  if (!rows || rows.length === 0) {
+  const sql = getDb();
+  const rows = await sql`
+    INSERT INTO posts (
+      title, subtitle, slug, key_idea, content,
+      cover_image, tags, week_number, status, published_at
+    )
+    VALUES (
+      ${input.title},
+      ${input.subtitle || null},
+      ${input.slug},
+      ${input.keyIdea},
+      ${input.content},
+      ${input.coverImage || null},
+      ${input.tags || []},
+      ${input.weekNumber ?? 1},
+      ${input.status || 'DRAFT'},
+      ${input.publishedAt || null}
+    )
+    RETURNING *
+  `;
+  if (!rows.length) {
     throw new Error('[posts] createPost error: no data returned');
   }
   return rowToPost(rows[0]);
 }
 
-export async function updatePost(id: string, input: Partial<PostInput>): Promise<Post | null> {
-  const supabase = createAdminClient();
-  const row = {
-    ...postInputToRow(input),
-    updated_at: new Date().toISOString(),
-  };
+export async function updatePost(
+  id: string,
+  input: Partial<PostInput>,
+): Promise<Post | null> {
+  const sql = getDb();
 
-  const { data, error } = await supabase
-    .from('posts')
-    .update(row)
-    .eq('id', id)
-    .select()
-    .single();
+  // Build a plain object with only the columns that were actually supplied.
+  // postgres.js's sql(obj) helper turns this into a safe "col = $n, …" clause.
+  const patch: Record<string, unknown> = { updated_at: new Date() };
 
-  if (error || !data) return null;
-  return rowToPost(data);
+  if (input.title      !== undefined) patch.title       = input.title;
+  if (input.subtitle   !== undefined) patch.subtitle    = input.subtitle   || null;
+  if (input.slug       !== undefined) patch.slug        = input.slug;
+  if (input.keyIdea    !== undefined) patch.key_idea    = input.keyIdea;
+  if (input.content    !== undefined) patch.content     = input.content;
+  if (input.coverImage !== undefined) patch.cover_image = input.coverImage || null;
+  if (input.tags       !== undefined) patch.tags        = input.tags;
+  if (input.weekNumber !== undefined) patch.week_number = input.weekNumber;
+  if (input.status     !== undefined) patch.status      = input.status;
+  if (input.publishedAt !== undefined) patch.published_at = input.publishedAt || null;
+
+  const rows = await sql`
+    UPDATE posts
+    SET    ${sql(patch)}
+    WHERE  id = ${id}::uuid
+    RETURNING *
+  `;
+
+  if (!rows.length) return null;
+  return rowToPost(rows[0]);
 }
 
 export async function deletePost(id: string): Promise<boolean> {
-  const supabase = createAdminClient();
-  const { error } = await supabase
-    .from('posts')
-    .delete()
-    .eq('id', id);
-
-  return !error;
+  try {
+    const sql = getDb();
+    await sql`
+      DELETE FROM posts WHERE id = ${id}::uuid
+    `;
+    return true;
+  } catch (err) {
+    console.error('[posts] deletePost error:', err);
+    return false;
+  }
 }

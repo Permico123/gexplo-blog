@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.2",
+    "postgres": "^3.4.5",
     "@tailwindcss/typography": "^0.5.19",
     "@types/js-cookie": "^3.0.6",
     "gray-matter": "^4.0.3",
