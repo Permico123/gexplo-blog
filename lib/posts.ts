@@ -2,10 +2,11 @@
  * lib/posts.ts
  *
  * Reads use Supabase JS client (direct table ops).
- * Writes use raw fetch() to /rest/v1/posts directly — bypasses
- * supabase-js and PostgREST function-schema-cache entirely.
+ * Writes (createPost, updatePost) use postgres.js direct SQL connection —
+ * completely bypasses PostgREST and its schema-cache entirely.
  */
 import { createAdminClient } from './supabase';
+import { getDb } from './db';
 import { Post, PostInput, PostStatus } from './types';
 
 // ─── Row → Post mapper ───────────────────────────────────────────────────────
@@ -102,40 +103,28 @@ export async function getPostById(id: string): Promise<Post | undefined> {
   }
 }
 
-// ─── Direct REST helpers (bypass PostgREST function schema cache) ─────────────
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-function restHeaders() {
-  return {
-    'apikey':        SERVICE_KEY,
-    'Authorization': `Bearer ${SERVICE_KEY}`,
-    'Content-Type':  'application/json',
-    'Prefer':        'return=representation',
-  };
-}
+// ─── Direct SQL writes (bypass PostgREST schema cache entirely) ───────────────
 
 export async function createPost(input: PostInput): Promise<Post> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/posts`, {
-    method: 'POST',
-    headers: restHeaders(),
-    body: JSON.stringify({
-      title:        input.title,
-      subtitle:     input.subtitle     || null,
-      slug:         input.slug,
-      key_idea:     input.keyIdea,
-      content:      input.content,
-      cover_image:  input.coverImage   || null,
-      tags:         input.tags         || [],
-      week_number:  input.weekNumber   ?? 1,
-      status:       input.status       || 'DRAFT',
-      published_at: input.publishedAt  || null,
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`[createPost] ${JSON.stringify(data)}`);
-  return rowToPost((data as Record<string, unknown>[])[0]);
+  const sql = getDb();
+  const rows = await sql`
+    INSERT INTO posts
+      (title, subtitle, slug, key_idea, content, cover_image, tags, week_number, status, published_at)
+    VALUES
+      (${input.title},
+       ${input.subtitle     || null},
+       ${input.slug},
+       ${input.keyIdea},
+       ${input.content},
+       ${input.coverImage   || null},
+       ${input.tags         || []},
+       ${input.weekNumber   ?? 1},
+       ${input.status       || 'DRAFT'},
+       ${input.publishedAt  || null})
+    RETURNING *
+  `;
+  if (!rows.length) throw new Error('[createPost] Insert returned no rows');
+  return rowToPost(rows[0] as Record<string, unknown>);
 }
 
 export async function updatePost(
@@ -145,27 +134,24 @@ export async function updatePost(
   try {
     const current = await getPostById(id);
     if (!current) return null;
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?id=eq.${id}`, {
-      method: 'PATCH',
-      headers: restHeaders(),
-      body: JSON.stringify({
-        title:        input.title        ?? current.title,
-        subtitle:     input.subtitle     ?? current.subtitle     ?? null,
-        slug:         input.slug         ?? current.slug,
-        key_idea:     input.keyIdea      ?? current.keyIdea,
-        content:      input.content      ?? current.content,
-        cover_image:  input.coverImage   ?? current.coverImage   ?? null,
-        tags:         input.tags         ?? current.tags         ?? [],
-        week_number:  input.weekNumber   ?? current.weekNumber,
-        status:       input.status       ?? current.status,
-        published_at: input.publishedAt  ?? current.publishedAt  ?? null,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) { console.error('[posts] updatePost error:', data); return null; }
-    const rows = data as Record<string, unknown>[];
+    const sql = getDb();
+    const rows = await sql`
+      UPDATE posts SET
+        title        = ${input.title        ?? current.title},
+        subtitle     = ${input.subtitle     ?? current.subtitle     ?? null},
+        slug         = ${input.slug         ?? current.slug},
+        key_idea     = ${input.keyIdea      ?? current.keyIdea},
+        content      = ${input.content      ?? current.content},
+        cover_image  = ${input.coverImage   ?? current.coverImage   ?? null},
+        tags         = ${input.tags         ?? current.tags         ?? []},
+        week_number  = ${input.weekNumber   ?? current.weekNumber},
+        status       = ${input.status       ?? current.status},
+        published_at = ${input.publishedAt  ?? current.publishedAt  ?? null}
+      WHERE id = ${id}
+      RETURNING *
+    `;
     if (!rows.length) return null;
-    return rowToPost(rows[0]);
+    return rowToPost(rows[0] as Record<string, unknown>);
   } catch (err) {
     console.error('[posts] updatePost error:', err);
     return null;
