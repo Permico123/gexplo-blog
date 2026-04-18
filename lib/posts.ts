@@ -116,9 +116,29 @@ function gqlHeaders() {
   };
 }
 
+// pg_graphql exposes columns in camelCase — use camelCase for both input and output fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function gqlRowToPost(row: Record<string, any>): Post {
+  return {
+    id:          row.id          as string,
+    title:       row.title       as string,
+    subtitle:    (row.subtitle   as string) || undefined,
+    slug:        row.slug        as string,
+    keyIdea:     row.keyIdea     as string,
+    content:     row.content     as string,
+    coverImage:  (row.coverImage as string) || undefined,
+    tags:        (row.tags       as string[]) || [],
+    weekNumber:  row.weekNumber  as number,
+    status:      row.status      as PostStatus,
+    publishedAt: (row.publishedAt as string) || undefined,
+    createdAt:   row.createdAt   as string,
+    updatedAt:   row.updatedAt   as string,
+  };
+}
+
 const POST_GQL_FIELDS = `
-  id title subtitle slug key_idea content cover_image tags
-  week_number status published_at created_at updated_at
+  id title subtitle slug keyIdea content coverImage tags
+  weekNumber status publishedAt createdAt updatedAt
 `;
 
 export async function createPost(input: PostInput): Promise<Post> {
@@ -127,29 +147,29 @@ export async function createPost(input: PostInput): Promise<Post> {
     headers: gqlHeaders(),
     body: JSON.stringify({
       query: `mutation CreatePost(
-        $title: String!, $subtitle: String, $slug: String!, $key_idea: String!,
-        $content: String!, $cover_image: String, $tags: [String!],
-        $week_number: Int!, $status: String!, $published_at: Datetime
+        $title: String!, $subtitle: String, $slug: String!, $keyIdea: String!,
+        $content: String!, $coverImage: String, $tags: [String!],
+        $weekNumber: Int!, $status: String!, $publishedAt: Datetime
       ) {
         insertIntopostsCollection(objects: [{
-          title: $title, subtitle: $subtitle, slug: $slug, key_idea: $key_idea,
-          content: $content, cover_image: $cover_image, tags: $tags,
-          week_number: $week_number, status: $status, published_at: $published_at
+          title: $title, subtitle: $subtitle, slug: $slug, keyIdea: $keyIdea,
+          content: $content, coverImage: $coverImage, tags: $tags,
+          weekNumber: $weekNumber, status: $status, publishedAt: $publishedAt
         }]) {
           records { ${POST_GQL_FIELDS} }
         }
       }`,
       variables: {
-        title:        input.title,
-        subtitle:     input.subtitle     || null,
-        slug:         input.slug,
-        key_idea:     input.keyIdea,
-        content:      input.content,
-        cover_image:  input.coverImage   || null,
-        tags:         input.tags         || [],
-        week_number:  input.weekNumber   ?? 1,
-        status:       input.status       || 'DRAFT',
-        published_at: input.publishedAt  || null,
+        title:       input.title,
+        subtitle:    input.subtitle    || null,
+        slug:        input.slug,
+        keyIdea:     input.keyIdea,
+        content:     input.content,
+        coverImage:  input.coverImage  || null,
+        tags:        input.tags        || [],
+        weekNumber:  input.weekNumber  ?? 1,
+        status:      input.status      || 'DRAFT',
+        publishedAt: input.publishedAt || null,
       },
     }),
   });
@@ -157,7 +177,7 @@ export async function createPost(input: PostInput): Promise<Post> {
   if (json.errors) throw new Error(`[createPost] ${JSON.stringify(json.errors)}`);
   const records = json.data?.insertIntopostsCollection?.records;
   if (!records?.length) throw new Error('[createPost] No records returned');
-  return rowToPost(records[0] as Record<string, unknown>);
+  return gqlRowToPost(records[0] as Record<string, unknown>);
 }
 
 export async function updatePost(
@@ -173,16 +193,16 @@ export async function updatePost(
       headers: gqlHeaders(),
       body: JSON.stringify({
         query: `mutation UpdatePost(
-          $id: UUID!, $title: String!, $subtitle: String, $slug: String!, $key_idea: String!,
-          $content: String!, $cover_image: String, $tags: [String!],
-          $week_number: Int!, $status: String!, $published_at: Datetime
+          $id: UUID!, $title: String!, $subtitle: String, $slug: String!, $keyIdea: String!,
+          $content: String!, $coverImage: String, $tags: [String!],
+          $weekNumber: Int!, $status: String!, $publishedAt: Datetime
         ) {
           updatepostsCollection(
             filter: { id: { eq: $id } }
             set: {
-              title: $title, subtitle: $subtitle, slug: $slug, key_idea: $key_idea,
-              content: $content, cover_image: $cover_image, tags: $tags,
-              week_number: $week_number, status: $status, published_at: $published_at
+              title: $title, subtitle: $subtitle, slug: $slug, keyIdea: $keyIdea,
+              content: $content, coverImage: $coverImage, tags: $tags,
+              weekNumber: $weekNumber, status: $status, publishedAt: $publishedAt
             }
           ) {
             records { ${POST_GQL_FIELDS} }
@@ -190,16 +210,16 @@ export async function updatePost(
         }`,
         variables: {
           id,
-          title:        input.title        ?? current.title,
-          subtitle:     input.subtitle     ?? current.subtitle     ?? null,
-          slug:         input.slug         ?? current.slug,
-          key_idea:     input.keyIdea      ?? current.keyIdea,
-          content:      input.content      ?? current.content,
-          cover_image:  input.coverImage   ?? current.coverImage   ?? null,
-          tags:         input.tags         ?? current.tags         ?? [],
-          week_number:  input.weekNumber   ?? current.weekNumber,
-          status:       input.status       ?? current.status,
-          published_at: input.publishedAt  ?? current.publishedAt  ?? null,
+          title:       input.title       ?? current.title,
+          subtitle:    input.subtitle    ?? current.subtitle    ?? null,
+          slug:        input.slug        ?? current.slug,
+          keyIdea:     input.keyIdea     ?? current.keyIdea,
+          content:     input.content     ?? current.content,
+          coverImage:  input.coverImage  ?? current.coverImage  ?? null,
+          tags:        input.tags        ?? current.tags        ?? [],
+          weekNumber:  input.weekNumber  ?? current.weekNumber,
+          status:      input.status      ?? current.status,
+          publishedAt: input.publishedAt ?? current.publishedAt ?? null,
         },
       }),
     });
@@ -207,7 +227,7 @@ export async function updatePost(
     if (json.errors) { console.error('[posts] updatePost error:', json.errors); return null; }
     const records = json.data?.updatepostsCollection?.records;
     if (!records?.length) return null;
-    return rowToPost(records[0] as Record<string, unknown>);
+    return gqlRowToPost(records[0] as Record<string, unknown>);
   } catch (err) {
     console.error('[posts] updatePost error:', err);
     return null;
