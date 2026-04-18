@@ -1,9 +1,9 @@
 /**
  * lib/posts.ts
  *
- * Reads use Supabase JS client (direct table ops).
- * Writes (createPost, updatePost) use pg_graphql (/graphql/v1) —
- * completely bypasses PostgREST schema-cache (immune to PGRST204).
+ * All operations use the Supabase JS client (PostgREST).
+ * The NOTIFY pgrst reload has been run to refresh the schema cache on all
+ * instances — key_idea is now recognised everywhere.
  */
 import { createAdminClient } from './supabase';
 import { Post, PostInput, PostStatus } from './types';
@@ -102,82 +102,26 @@ export async function getPostById(id: string): Promise<Post | undefined> {
   }
 }
 
-// ─── GraphQL writes (bypass PostgREST schema-cache entirely) ─────────────────
-// pg_graphql has its own schema handler — immune to the PostgREST stale-cache issue.
-
-const GRAPHQL_URL = `${process.env.NEXT_PUBLIC_SUPABASE_URL!}/graphql/v1`;
-const GQL_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-function gqlHeaders() {
-  return {
-    'apikey':        GQL_SERVICE_KEY,
-    'Authorization': `Bearer ${GQL_SERVICE_KEY}`,
-    'Content-Type':  'application/json',
-  };
-}
-
-// pg_graphql exposes columns in camelCase — use camelCase for both input and output fields.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function gqlRowToPost(row: Record<string, any>): Post {
-  return {
-    id:          row.id          as string,
-    title:       row.title       as string,
-    subtitle:    (row.subtitle   as string) || undefined,
-    slug:        row.slug        as string,
-    keyIdea:     row.keyIdea     as string,
-    content:     row.content     as string,
-    coverImage:  (row.coverImage as string) || undefined,
-    tags:        (row.tags       as string[]) || [],
-    weekNumber:  row.weekNumber  as number,
-    status:      row.status      as PostStatus,
-    publishedAt: (row.publishedAt as string) || undefined,
-    createdAt:   row.createdAt   as string,
-    updatedAt:   row.updatedAt   as string,
-  };
-}
-
-const POST_GQL_FIELDS = `
-  id title subtitle slug keyIdea content coverImage tags
-  weekNumber status publishedAt createdAt updatedAt
-`;
-
 export async function createPost(input: PostInput): Promise<Post> {
-  const res = await fetch(GRAPHQL_URL, {
-    method: 'POST',
-    headers: gqlHeaders(),
-    body: JSON.stringify({
-      query: `mutation CreatePost(
-        $title: String!, $subtitle: String, $slug: String!, $keyIdea: String!,
-        $content: String!, $coverImage: String, $tags: [String!],
-        $weekNumber: Int!, $status: String!, $publishedAt: Datetime
-      ) {
-        insertIntopostsCollection(objects: [{
-          title: $title, subtitle: $subtitle, slug: $slug, keyIdea: $keyIdea,
-          content: $content, coverImage: $coverImage, tags: $tags,
-          weekNumber: $weekNumber, status: $status, publishedAt: $publishedAt
-        }]) {
-          records { ${POST_GQL_FIELDS} }
-        }
-      }`,
-      variables: {
-        title:       input.title,
-        subtitle:    input.subtitle    || null,
-        slug:        input.slug,
-        keyIdea:     input.keyIdea,
-        content:     input.content,
-        coverImage:  input.coverImage  || null,
-        tags:        input.tags        || [],
-        weekNumber:  input.weekNumber  ?? 1,
-        status:      input.status      || 'DRAFT',
-        publishedAt: input.publishedAt || null,
-      },
-    }),
-  });
-  const json = await res.json();
-  if (json.errors) throw new Error(`[createPost] ${JSON.stringify(json.errors)}`);
-  const records = json.data?.insertIntopostsCollection?.records;
-  if (!records?.length) throw new Error('[createPost] No records returned');
-  return gqlRowToPost(records[0] as Record<string, unknown>);
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('posts')
+    .insert({
+      title:        input.title,
+      subtitle:     input.subtitle     || null,
+      slug:         input.slug,
+      key_idea:     input.keyIdea,
+      content:      input.content,
+      cover_image:  input.coverImage   || null,
+      tags:         input.tags         || [],
+      week_number:  input.weekNumber   ?? 1,
+      status:       input.status       || 'DRAFT',
+      published_at: input.publishedAt  || null,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`[createPost] ${error.message}`);
+  return rowToPost(data as Record<string, unknown>);
 }
 
 export async function updatePost(
@@ -188,46 +132,26 @@ export async function updatePost(
     const current = await getPostById(id);
     if (!current) return null;
 
-    const res = await fetch(GRAPHQL_URL, {
-      method: 'POST',
-      headers: gqlHeaders(),
-      body: JSON.stringify({
-        query: `mutation UpdatePost(
-          $id: UUID!, $title: String!, $subtitle: String, $slug: String!, $keyIdea: String!,
-          $content: String!, $coverImage: String, $tags: [String!],
-          $weekNumber: Int!, $status: String!, $publishedAt: Datetime
-        ) {
-          updatepostsCollection(
-            filter: { id: { eq: $id } }
-            set: {
-              title: $title, subtitle: $subtitle, slug: $slug, keyIdea: $keyIdea,
-              content: $content, coverImage: $coverImage, tags: $tags,
-              weekNumber: $weekNumber, status: $status, publishedAt: $publishedAt
-            }
-          ) {
-            records { ${POST_GQL_FIELDS} }
-          }
-        }`,
-        variables: {
-          id,
-          title:       input.title       ?? current.title,
-          subtitle:    input.subtitle    ?? current.subtitle    ?? null,
-          slug:        input.slug        ?? current.slug,
-          keyIdea:     input.keyIdea     ?? current.keyIdea,
-          content:     input.content     ?? current.content,
-          coverImage:  input.coverImage  ?? current.coverImage  ?? null,
-          tags:        input.tags        ?? current.tags        ?? [],
-          weekNumber:  input.weekNumber  ?? current.weekNumber,
-          status:      input.status      ?? current.status,
-          publishedAt: input.publishedAt ?? current.publishedAt ?? null,
-        },
-      }),
-    });
-    const json = await res.json();
-    if (json.errors) { console.error('[posts] updatePost error:', json.errors); return null; }
-    const records = json.data?.updatepostsCollection?.records;
-    if (!records?.length) return null;
-    return gqlRowToPost(records[0] as Record<string, unknown>);
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('posts')
+      .update({
+        title:        input.title        ?? current.title,
+        subtitle:     input.subtitle     ?? current.subtitle     ?? null,
+        slug:         input.slug         ?? current.slug,
+        key_idea:     input.keyIdea      ?? current.keyIdea,
+        content:      input.content      ?? current.content,
+        cover_image:  input.coverImage   ?? current.coverImage   ?? null,
+        tags:         input.tags         ?? current.tags         ?? [],
+        week_number:  input.weekNumber   ?? current.weekNumber,
+        status:       input.status       ?? current.status,
+        published_at: input.publishedAt  ?? current.publishedAt  ?? null,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) { console.error('[posts] updatePost error:', error); return null; }
+    return rowToPost(data as Record<string, unknown>);
   } catch (err) {
     console.error('[posts] updatePost error:', err);
     return null;
