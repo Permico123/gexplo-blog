@@ -13,7 +13,7 @@ import { createAdminClient } from './supabase';
 import { getDb } from './db';
 import { Post, PostInput, PostStatus } from './types';
 
-// ─── Row → Post mapper ───────────────────────────────────────────────────────
+// ─── Row → Post mapper ─────────────────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function rowToPost(row: Record<string, any>): Post {
@@ -34,7 +34,7 @@ function rowToPost(row: Record<string, any>): Post {
   };
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────────
+// ─── Public API ───────────────────────────────────────────────────────────────────────────────────
 
 export async function getAllPosts(): Promise<Post[]> {
   try {
