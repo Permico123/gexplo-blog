@@ -104,24 +104,20 @@ export async function getPostById(id: string): Promise<Post | undefined> {
 
 export async function createPost(input: PostInput): Promise<Post> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('posts')
-    .insert({
-      title:        input.title,
-      subtitle:     input.subtitle     || null,
-      slug:         input.slug,
-      key_idea:     input.keyIdea,
-      content:      input.content,
-      cover_image:  input.coverImage   || null,
-      tags:         input.tags         || [],
-      week_number:  input.weekNumber   ?? 1,
-      status:       input.status       || 'DRAFT',
-      published_at: input.publishedAt  || null,
-    })
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('fn_create_post', {
+    p_title:        input.title,
+    p_subtitle:     input.subtitle     || null,
+    p_slug:         input.slug,
+    p_key_idea:     input.keyIdea,
+    p_content:      input.content,
+    p_cover_image:  input.coverImage   || null,
+    p_tags:         input.tags         || [],
+    p_week_number:  input.weekNumber   ?? 1,
+    p_status:       input.status       || 'DRAFT',
+    p_published_at: input.publishedAt  || null,
+  });
   if (error) throw new Error(`[createPost] ${error.message}`);
-  return rowToPost(data);
+  return rowToPost((data as Record<string, unknown>[])[0]);
 }
 
 export async function updatePost(
@@ -129,34 +125,26 @@ export async function updatePost(
   input: Partial<PostInput>,
 ): Promise<Post | null> {
   try {
+    // First fetch current post to fill any missing fields
+    const current = await getPostById(id);
+    if (!current) return null;
     const supabase = createAdminClient();
-
-    // Build update object with only the provided fields
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updates: Record<string, any> = {};
-    if (input.title        !== undefined) updates.title        = input.title;
-    if (input.subtitle     !== undefined) updates.subtitle     = input.subtitle     ?? null;
-    if (input.slug         !== undefined) updates.slug         = input.slug;
-    if (input.keyIdea      !== undefined) updates.key_idea     = input.keyIdea;
-    if (input.content      !== undefined) updates.content      = input.content;
-    if (input.coverImage   !== undefined) updates.cover_image  = input.coverImage   ?? null;
-    if (input.tags         !== undefined) updates.tags         = input.tags;
-    if (input.weekNumber   !== undefined) updates.week_number  = input.weekNumber;
-    if (input.status       !== undefined) updates.status       = input.status;
-    if (input.publishedAt  !== undefined) updates.published_at = input.publishedAt  ?? null;
-
-    const { data, error } = await supabase
-      .from('posts')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw error;
-    }
-    if (!data) return null;
-    return rowToPost(data);
+    const { data, error } = await supabase.rpc('fn_update_post', {
+      p_id:           id,
+      p_title:        input.title        ?? current.title,
+      p_subtitle:     input.subtitle     ?? current.subtitle     ?? null,
+      p_slug:         input.slug         ?? current.slug,
+      p_key_idea:     input.keyIdea      ?? current.keyIdea,
+      p_content:      input.content      ?? current.content,
+      p_cover_image:  input.coverImage   ?? current.coverImage   ?? null,
+      p_tags:         input.tags         ?? current.tags         ?? [],
+      p_week_number:  input.weekNumber   ?? current.weekNumber,
+      p_status:       input.status       ?? current.status,
+      p_published_at: input.publishedAt  ?? current.publishedAt  ?? null,
+    });
+    if (error) { console.error('[posts] updatePost error:', error); return null; }
+    if (!data || !(data as Record<string, unknown>[]).length) return null;
+    return rowToPost((data as Record<string, unknown>[])[0]);
   } catch (err) {
     console.error('[posts] updatePost error:', err);
     return null;
