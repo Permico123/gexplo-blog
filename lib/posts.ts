@@ -2,7 +2,8 @@
  * lib/posts.ts
  *
  * Reads use Supabase JS client (direct table ops).
- * Writes use raw fetch() to bypass supabase-js / PostgREST schema-cache issues.
+ * Writes use raw fetch() to /rest/v1/posts directly — bypasses
+ * supabase-js and PostgREST function-schema-cache entirely.
  */
 import { createAdminClient } from './supabase';
 import { Post, PostInput, PostStatus } from './types';
@@ -101,41 +102,40 @@ export async function getPostById(id: string): Promise<Post | undefined> {
   }
 }
 
-// ─── Direct REST helpers (bypass supabase-js schema cache) ──────────────────
+// ─── Direct REST helpers (bypass PostgREST function schema cache) ─────────────
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-async function rpcFetch(fn: string, body: Record<string, unknown>): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type':  'application/json',
-      'Accept':        'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`[${fn}] ${JSON.stringify(data)}`);
-  return data as Record<string, unknown>[];
+function restHeaders() {
+  return {
+    'apikey':        SERVICE_KEY,
+    'Authorization': `Bearer ${SERVICE_KEY}`,
+    'Content-Type':  'application/json',
+    'Prefer':        'return=representation',
+  };
 }
 
 export async function createPost(input: PostInput): Promise<Post> {
-  const rows = await rpcFetch('fn_create_post', {
-    p_title:        input.title,
-    p_subtitle:     input.subtitle     || null,
-    p_slug:         input.slug,
-    p_key_idea:     input.keyIdea,
-    p_content:      input.content,
-    p_cover_image:  input.coverImage   || null,
-    p_tags:         input.tags         || [],
-    p_week_number:  input.weekNumber   ?? 1,
-    p_status:       input.status       || 'DRAFT',
-    p_published_at: input.publishedAt  || null,
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/posts`, {
+    method: 'POST',
+    headers: restHeaders(),
+    body: JSON.stringify({
+      title:        input.title,
+      subtitle:     input.subtitle     || null,
+      slug:         input.slug,
+      key_idea:     input.keyIdea,
+      content:      input.content,
+      cover_image:  input.coverImage   || null,
+      tags:         input.tags         || [],
+      week_number:  input.weekNumber   ?? 1,
+      status:       input.status       || 'DRAFT',
+      published_at: input.publishedAt  || null,
+    }),
   });
-  return rowToPost(rows[0]);
+  const data = await res.json();
+  if (!res.ok) throw new Error(`[createPost] ${JSON.stringify(data)}`);
+  return rowToPost((data as Record<string, unknown>[])[0]);
 }
 
 export async function updatePost(
@@ -145,19 +145,25 @@ export async function updatePost(
   try {
     const current = await getPostById(id);
     if (!current) return null;
-    const rows = await rpcFetch('fn_update_post', {
-      p_id:           id,
-      p_title:        input.title        ?? current.title,
-      p_subtitle:     input.subtitle     ?? current.subtitle     ?? null,
-      p_slug:         input.slug         ?? current.slug,
-      p_key_idea:     input.keyIdea      ?? current.keyIdea,
-      p_content:      input.content      ?? current.content,
-      p_cover_image:  input.coverImage   ?? current.coverImage   ?? null,
-      p_tags:         input.tags         ?? current.tags         ?? [],
-      p_week_number:  input.weekNumber   ?? current.weekNumber,
-      p_status:       input.status       ?? current.status,
-      p_published_at: input.publishedAt  ?? current.publishedAt  ?? null,
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: restHeaders(),
+      body: JSON.stringify({
+        title:        input.title        ?? current.title,
+        subtitle:     input.subtitle     ?? current.subtitle     ?? null,
+        slug:         input.slug         ?? current.slug,
+        key_idea:     input.keyIdea      ?? current.keyIdea,
+        content:      input.content      ?? current.content,
+        cover_image:  input.coverImage   ?? current.coverImage   ?? null,
+        tags:         input.tags         ?? current.tags         ?? [],
+        week_number:  input.weekNumber   ?? current.weekNumber,
+        status:       input.status       ?? current.status,
+        published_at: input.publishedAt  ?? current.publishedAt  ?? null,
+      }),
     });
+    const data = await res.json();
+    if (!res.ok) { console.error('[posts] updatePost error:', data); return null; }
+    const rows = data as Record<string, unknown>[];
     if (!rows.length) return null;
     return rowToPost(rows[0]);
   } catch (err) {
