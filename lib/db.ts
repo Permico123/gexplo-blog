@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 
-// Lazy singleton — one connection pool per cold-start in serverless (session pooler)
+// Lazy singleton — one connection pool per cold-start in serverless (direct connection)
 let _sql: ReturnType<typeof postgres> | null = null;
 
 /**
