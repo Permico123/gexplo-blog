@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 
-// Lazy singleton — one connection pool per cold-start in serverless (direct connection)
+// Lazy singleton — one connection pool per cold-start in serverless
 let _sql: ReturnType<typeof postgres> | null = null;
 
 /**
@@ -22,10 +22,11 @@ export function getDb(): ReturnType<typeof postgres> {
       );
     }
     _sql = postgres(url, {
-      ssl: 'require',
-      max: 1,            // Serverless: one connection per function instance
-      idle_timeout: 20,  // Release idle connections quickly
+      ssl:             'require',
+      max:             1,     // Serverless: one connection per function instance
+      idle_timeout:    20,    // Release idle connections quickly
       connect_timeout: 10,
+      prepare:         false, // Required for PgBouncer transaction-mode pooler
     });
   }
   return _sql;
