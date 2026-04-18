@@ -1,9 +1,10 @@
 /**
  * lib/posts.ts
  *
- * All operations use the Supabase JS client (PostgREST).
- * The NOTIFY pgrst reload has been run to refresh the schema cache on all
- * instances — key_idea is now recognised everywhere.
+ * Writes use stored-procedure RPC calls (fn_create_post / fn_update_post)
+ * so that PostgREST's column-level schema cache is bypassed entirely —
+ * the function signatures are stable even when the cache is stale.
+ * Reads still use the JS client directly (SELECT * never needs schema cache).
  */
 import { createAdminClient } from './supabase';
 import { Post, PostInput, PostStatus } from './types';
@@ -104,24 +105,24 @@ export async function getPostById(id: string): Promise<Post | undefined> {
 
 export async function createPost(input: PostInput): Promise<Post> {
   const supabase = createAdminClient();
+  // Use RPC to bypass PostgREST column-level schema cache validation.
   const { data, error } = await supabase
-    .from('posts')
-    .insert({
-      title:        input.title,
-      subtitle:     input.subtitle     || null,
-      slug:         input.slug,
-      key_idea:     input.keyIdea,
-      content:      input.content,
-      cover_image:  input.coverImage   || null,
-      tags:         input.tags         || [],
-      week_number:  input.weekNumber   ?? 1,
-      status:       input.status       || 'DRAFT',
-      published_at: input.publishedAt  || null,
-    })
-    .select()
-    .single();
+    .rpc('fn_create_post', {
+      p_title:        input.title,
+      p_subtitle:     input.subtitle     || null,
+      p_slug:         input.slug,
+      p_key_idea:     input.keyIdea,
+      p_content:      input.content,
+      p_cover_image:  input.coverImage   || null,
+      p_tags:         input.tags         || [],
+      p_week_number:  input.weekNumber   ?? 1,
+      p_status:       input.status       || 'DRAFT',
+      p_published_at: input.publishedAt  || null,
+    });
   if (error) throw new Error(`[createPost] ${error.message}`);
-  return rowToPost(data as Record<string, unknown>);
+  const rows = data as Record<string, unknown>[];
+  if (!rows?.length) throw new Error('[createPost] no row returned');
+  return rowToPost(rows[0]);
 }
 
 export async function updatePost(
@@ -133,25 +134,25 @@ export async function updatePost(
     if (!current) return null;
 
     const supabase = createAdminClient();
+    // Use RPC to bypass PostgREST column-level schema cache validation.
     const { data, error } = await supabase
-      .from('posts')
-      .update({
-        title:        input.title        ?? current.title,
-        subtitle:     input.subtitle     ?? current.subtitle     ?? null,
-        slug:         input.slug         ?? current.slug,
-        key_idea:     input.keyIdea      ?? current.keyIdea,
-        content:      input.content      ?? current.content,
-        cover_image:  input.coverImage   ?? current.coverImage   ?? null,
-        tags:         input.tags         ?? current.tags         ?? [],
-        week_number:  input.weekNumber   ?? current.weekNumber,
-        status:       input.status       ?? current.status,
-        published_at: input.publishedAt  ?? current.publishedAt  ?? null,
-      })
-      .eq('id', id)
-      .select()
-      .single();
+      .rpc('fn_update_post', {
+        p_id:           id,
+        p_title:        input.title        ?? current.title,
+        p_subtitle:     input.subtitle     ?? current.subtitle     ?? null,
+        p_slug:         input.slug         ?? current.slug,
+        p_key_idea:     input.keyIdea      ?? current.keyIdea,
+        p_content:      input.content      ?? current.content,
+        p_cover_image:  input.coverImage   ?? current.coverImage   ?? null,
+        p_tags:         input.tags         ?? current.tags         ?? [],
+        p_week_number:  input.weekNumber   ?? current.weekNumber,
+        p_status:       input.status       ?? current.status,
+        p_published_at: input.publishedAt  ?? current.publishedAt  ?? null,
+      });
     if (error) { console.error('[posts] updatePost error:', error); return null; }
-    return rowToPost(data as Record<string, unknown>);
+    const rows = data as Record<string, unknown>[];
+    if (!rows?.length) return null;
+    return rowToPost(rows[0]);
   } catch (err) {
     console.error('[posts] updatePost error:', err);
     return null;
