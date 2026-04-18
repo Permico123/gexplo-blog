@@ -1,9 +1,8 @@
 /**
  * lib/posts.ts
  *
- * Uses Supabase JS client table operations directly.
- * The project restart (pause/restore) refreshed PostgREST's schema cache,
- * so direct table access now recognises all columns including key_idea.
+ * Reads use Supabase JS client (direct table ops).
+ * Writes use raw fetch() to bypass supabase-js / PostgREST schema-cache issues.
  */
 import { createAdminClient } from './supabase';
 import { Post, PostInput, PostStatus } from './types';
@@ -102,9 +101,29 @@ export async function getPostById(id: string): Promise<Post | undefined> {
   }
 }
 
+// ─── Direct REST helpers (bypass supabase-js schema cache) ──────────────────
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+async function rpcFetch(fn: string, body: Record<string, unknown>): Promise<Record<string, unknown>[]> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: {
+      'apikey':        SERVICE_KEY,
+      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'Content-Type':  'application/json',
+      'Accept':        'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`[${fn}] ${JSON.stringify(data)}`);
+  return data as Record<string, unknown>[];
+}
+
 export async function createPost(input: PostInput): Promise<Post> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc('fn_create_post', {
+  const rows = await rpcFetch('fn_create_post', {
     p_title:        input.title,
     p_subtitle:     input.subtitle     || null,
     p_slug:         input.slug,
@@ -116,8 +135,7 @@ export async function createPost(input: PostInput): Promise<Post> {
     p_status:       input.status       || 'DRAFT',
     p_published_at: input.publishedAt  || null,
   });
-  if (error) throw new Error(`[createPost] ${error.message}`);
-  return rowToPost((data as Record<string, unknown>[])[0]);
+  return rowToPost(rows[0]);
 }
 
 export async function updatePost(
@@ -125,11 +143,9 @@ export async function updatePost(
   input: Partial<PostInput>,
 ): Promise<Post | null> {
   try {
-    // First fetch current post to fill any missing fields
     const current = await getPostById(id);
     if (!current) return null;
-    const supabase = createAdminClient();
-    const { data, error } = await supabase.rpc('fn_update_post', {
+    const rows = await rpcFetch('fn_update_post', {
       p_id:           id,
       p_title:        input.title        ?? current.title,
       p_subtitle:     input.subtitle     ?? current.subtitle     ?? null,
@@ -142,9 +158,8 @@ export async function updatePost(
       p_status:       input.status       ?? current.status,
       p_published_at: input.publishedAt  ?? current.publishedAt  ?? null,
     });
-    if (error) { console.error('[posts] updatePost error:', error); return null; }
-    if (!data || !(data as Record<string, unknown>[]).length) return null;
-    return rowToPost((data as Record<string, unknown>[])[0]);
+    if (!rows.length) return null;
+    return rowToPost(rows[0]);
   } catch (err) {
     console.error('[posts] updatePost error:', err);
     return null;
