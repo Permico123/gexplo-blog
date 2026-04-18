@@ -1,12 +1,16 @@
 /**
  * lib/posts.ts
  *
- * Writes use stored-procedure RPC calls (fn_create_post / fn_update_post)
- * so that PostgREST's column-level schema cache is bypassed entirely —
- * the function signatures are stable even when the cache is stale.
- * Reads still use the JS client directly (SELECT * never needs schema cache).
+ * Writes (createPost / updatePost / deletePost) use postgres.js via getDb()
+ * which connects DIRECTLY to PostgreSQL, bypassing PostgREST and its schema
+ * cache entirely.  This permanently fixes PGRST204 errors caused by stale
+ * PostgREST schema caches on Supabase free tier.
+ *
+ * Reads still use the Supabase JS client (PostgREST SELECT * never touches
+ * the schema cache for column names, only for table existence).
  */
 import { createAdminClient } from './supabase';
+import { getDb } from './db';
 import { Post, PostInput, PostStatus } from './types';
 
 // ─── Row → Post mapper ───────────────────────────────────────────────────────
@@ -104,25 +108,27 @@ export async function getPostById(id: string): Promise<Post | undefined> {
 }
 
 export async function createPost(input: PostInput): Promise<Post> {
-  const supabase = createAdminClient();
-  // Use RPC to bypass PostgREST column-level schema cache validation.
-  const { data, error } = await supabase
-    .rpc('fn_create_post', {
-      p_title:        input.title,
-      p_subtitle:     input.subtitle     || null,
-      p_slug:         input.slug,
-      p_key_idea:     input.keyIdea,
-      p_content:      input.content,
-      p_cover_image:  input.coverImage   || null,
-      p_tags:         input.tags         || [],
-      p_week_number:  input.weekNumber   ?? 1,
-      p_status:       input.status       || 'DRAFT',
-      p_published_at: input.publishedAt  || null,
-    });
-  if (error) throw new Error(`[createPost] ${error.message}`);
-  const rows = data as Record<string, unknown>[];
-  if (!rows?.length) throw new Error('[createPost] no row returned');
-  return rowToPost(rows[0]);
+  // Direct postgres.js write — bypasses PostgREST schema cache entirely.
+  const sql = getDb();
+  const rows = await sql`
+    INSERT INTO posts
+      (title, subtitle, slug, key_idea, content, cover_image, tags, week_number, status, published_at)
+    VALUES (
+      ${input.title},
+      ${input.subtitle     || null},
+      ${input.slug},
+      ${input.keyIdea},
+      ${input.content},
+      ${input.coverImage   || null},
+      ${input.tags         || []},
+      ${input.weekNumber   ?? 1},
+      ${input.status       || 'DRAFT'},
+      ${input.publishedAt  || null}
+    )
+    RETURNING *
+  `;
+  if (!rows.length) throw new Error('[createPost] no row returned');
+  return rowToPost(rows[0] as Record<string, unknown>);
 }
 
 export async function updatePost(
@@ -133,26 +139,26 @@ export async function updatePost(
     const current = await getPostById(id);
     if (!current) return null;
 
-    const supabase = createAdminClient();
-    // Use RPC to bypass PostgREST column-level schema cache validation.
-    const { data, error } = await supabase
-      .rpc('fn_update_post', {
-        p_id:           id,
-        p_title:        input.title        ?? current.title,
-        p_subtitle:     input.subtitle     ?? current.subtitle     ?? null,
-        p_slug:         input.slug         ?? current.slug,
-        p_key_idea:     input.keyIdea      ?? current.keyIdea,
-        p_content:      input.content      ?? current.content,
-        p_cover_image:  input.coverImage   ?? current.coverImage   ?? null,
-        p_tags:         input.tags         ?? current.tags         ?? [],
-        p_week_number:  input.weekNumber   ?? current.weekNumber,
-        p_status:       input.status       ?? current.status,
-        p_published_at: input.publishedAt  ?? current.publishedAt  ?? null,
-      });
-    if (error) { console.error('[posts] updatePost error:', error); return null; }
-    const rows = data as Record<string, unknown>[];
-    if (!rows?.length) return null;
-    return rowToPost(rows[0]);
+    // Direct postgres.js write — bypasses PostgREST schema cache entirely.
+    const sql = getDb();
+    const rows = await sql`
+      UPDATE posts SET
+        title        = ${input.title        ?? current.title},
+        subtitle     = ${input.subtitle     ?? current.subtitle     ?? null},
+        slug         = ${input.slug         ?? current.slug},
+        key_idea     = ${input.keyIdea      ?? current.keyIdea},
+        content      = ${input.content      ?? current.content},
+        cover_image  = ${input.coverImage   ?? current.coverImage   ?? null},
+        tags         = ${input.tags         ?? current.tags         ?? []},
+        week_number  = ${input.weekNumber   ?? current.weekNumber},
+        status       = ${input.status       ?? current.status},
+        published_at = ${input.publishedAt  ?? current.publishedAt  ?? null},
+        updated_at   = now()
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    if (!rows.length) return null;
+    return rowToPost(rows[0] as Record<string, unknown>);
   } catch (err) {
     console.error('[posts] updatePost error:', err);
     return null;
@@ -161,12 +167,8 @@ export async function updatePost(
 
 export async function deletePost(id: string): Promise<boolean> {
   try {
-    const supabase = createAdminClient();
-    const { error } = await supabase
-      .from('posts')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
+    const sql = getDb();
+    await sql`DELETE FROM posts WHERE id = ${id}`;
     return true;
   } catch (err) {
     console.error('[posts] deletePost error:', err);
