@@ -3,17 +3,16 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { getPublishedPosts, getPostBySlug } from '@/lib/posts';
+import { getPostBySlug } from '@/lib/posts';
+
+// Render dinámico: cada request consulta Supabase en tiempo real.
+// Evita el 404 cuando un post se publica después del último build.
+export const dynamic = 'force-dynamic';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.gexplo.com';
 
 interface Props {
   params: Promise<{ slug: string }>;
-}
-
-export async function generateStaticParams() {
-  const posts = await getPublishedPosts();
-  return posts.map(post => ({ slug: post.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
