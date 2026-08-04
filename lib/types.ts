@@ -17,3 +17,16 @@ export interface Post {
 }
 
 export type PostInput = Omit<Post, 'id' | 'createdAt' | 'updatedAt'>;
+
+// ─── Tipo de contenido ─────────────────────────────────────────────
+// Derivado por tag para no requerir migración de esquema: una
+// publicación con el tag "guía" (o "guia") pertenece a la sección
+// Guías; el resto son entradas de la Bitácora semanal.
+export const GUIDE_TAG = 'guía';
+
+export function isGuide(post: Pick<Post, 'tags'>): boolean {
+  return post.tags.some(t => {
+    const n = t.trim().toLowerCase();
+    return n === 'guía' || n === 'guia';
+  });
+}
