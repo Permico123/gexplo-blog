@@ -10,6 +10,8 @@ import { getPostBySlug } from '@/lib/posts';
 export const dynamic = 'force-dynamic';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.gexplo.com';
+// Las imágenes OG se generan siempre en el subdominio (app en Vercel).
+const OG_ORIGIN = 'https://blog.gexplo.com';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -26,7 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = post.subtitle || post.keyIdea;
   const ogImageUrl = post.coverImage
     ? post.coverImage
-    : `${SITE_URL}/api/og?title=${encodeURIComponent(post.title)}&week=${post.weekNumber}&subtitle=${encodeURIComponent(post.subtitle || post.keyIdea)}`;
+    : `${OG_ORIGIN}/api/og?title=${encodeURIComponent(post.title)}&week=${post.weekNumber}&subtitle=${encodeURIComponent(post.subtitle || post.keyIdea)}`;
   const url = `${SITE_URL}/blog/${post.slug}`;
 
   return {
