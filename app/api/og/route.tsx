@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
             </div>
             <div style={{ color: '#2D4F3A', fontSize: '20px' }}>·</div>
             <div style={{ color: '#6B8F7A', fontSize: '15px', fontFamily: 'Arial, sans-serif' }}>
-              blog.gexplo.com
+              www.gexplo.com/blog
             </div>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
