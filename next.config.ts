@@ -19,6 +19,37 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '4mb',
     },
   },
+  // El blog vive en www.gexplo.com/blog. Las URLs públicas del subdominio
+  // redirigen 301; /admin y /api quedan en el subdominio (rutina de publicación).
+  // El proxy consume gexplo-blog.vercel.app, así que no le afectan estas reglas.
+  async redirects() {
+    return [
+      {
+        source: '/',
+        has: [{ type: 'host' as const, value: 'blog.gexplo.com' }],
+        destination: 'https://www.gexplo.com/blog',
+        permanent: true,
+      },
+      {
+        source: '/blog',
+        has: [{ type: 'host' as const, value: 'blog.gexplo.com' }],
+        destination: 'https://www.gexplo.com/blog',
+        permanent: true,
+      },
+      {
+        source: '/blog/:slug*',
+        has: [{ type: 'host' as const, value: 'blog.gexplo.com' }],
+        destination: 'https://www.gexplo.com/blog/:slug*',
+        permanent: true,
+      },
+      {
+        source: '/sobre',
+        has: [{ type: 'host' as const, value: 'blog.gexplo.com' }],
+        destination: 'https://www.gexplo.com/sobre',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
