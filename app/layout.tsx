@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.gexplo.com';
+// Las imágenes OG se generan siempre en el subdominio (app en Vercel).
+const OG_ORIGIN = 'https://blog.gexplo.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -24,7 +26,7 @@ export const metadata: Metadata = {
       'Bitácora del CEO. Documentación semanal de decisiones, aprendizajes y evolución real de GEXPLO.',
     images: [
       {
-        url: `${SITE_URL}/api/og`,
+        url: `${OG_ORIGIN}/api/og`,
         width: 1200,
         height: 630,
         alt: 'GEXPLO · Laboratorio Editorial',
@@ -35,7 +37,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'GEXPLO · Laboratorio Editorial',
     description: 'Bitácora del CEO de GEXPLO. De consultora ambiental a empresa tecnológica basada en datos.',
-    images: [`${SITE_URL}/api/og`],
+    images: [`${OG_ORIGIN}/api/og`],
   },
   robots: {
     index: true,
