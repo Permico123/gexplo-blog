@@ -1,6 +1,9 @@
 import { MetadataRoute } from 'next';
 import { getPublishedPosts } from '@/lib/posts';
 
+// Genera el sitemap en cada request (no en build) para incluir posts nuevos.
+export const dynamic = 'force-dynamic';
+
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.gexplo.com';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
