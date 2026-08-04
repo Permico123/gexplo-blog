@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useState } from 'react';
 
 export default function Header() {
@@ -31,13 +30,13 @@ export default function Header() {
       >
         {/* Logo */}
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <Image
-            src="/logo-gexplo.png"
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://blog.gexplo.com/logo-gexplo.png"
             alt="GEXPLO"
             width={130}
             height={28}
             style={{ objectFit: 'contain', objectPosition: 'left' }}
-            priority
           />
           <div
             style={{
