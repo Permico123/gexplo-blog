@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { getPostBySlug } from '@/lib/posts';
+import { isGuide } from '@/lib/types';
 
 // Render dinámico: cada request consulta Supabase en tiempo real.
 // Evita el 404 cuando un post se publica después del último build.
@@ -91,6 +92,7 @@ export default async function PostPage({ params }: Props) {
     : '';
 
   const htmlContent = renderMarkdown(post.content);
+  const guide = isGuide(post);
 
   return (
     <>
@@ -116,7 +118,7 @@ export default async function PostPage({ params }: Props) {
               </Link>
               <span style={{ color: '#2D4F3A' }}>/</span>
               <span style={{ fontSize: '0.75rem', color: '#9BB8A8' }}>
-                Semana {String(post.weekNumber).padStart(2, '0')}
+                {guide ? 'Guía' : `Semana ${String(post.weekNumber).padStart(2, '0')}`}
               </span>
             </div>
 
@@ -135,7 +137,7 @@ export default async function PostPage({ params }: Props) {
                   borderRadius: '100px',
                 }}
               >
-                Semana {String(post.weekNumber).padStart(2, '0')}
+                {guide ? 'Guía técnica' : `Semana ${String(post.weekNumber).padStart(2, '0')}`}
               </span>
               {date && <span style={{ fontSize: '0.78rem', color: '#6B8F7A' }}>{date}</span>}
             </div>
@@ -228,6 +230,8 @@ export default async function PostPage({ params }: Props) {
               fontSize: '1.02rem',
               lineHeight: '1.8',
               color: '#2C3E35',
+              textAlign: 'justify',
+              hyphens: 'auto',
             }}
             dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
