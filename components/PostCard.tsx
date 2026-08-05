@@ -10,13 +10,16 @@ interface PostCardProps {
 
 export default function PostCard({ post, featured = false }: PostCardProps) {
   const guide = isGuide(post);
-  const date = post.publishedAt
-    ? new Date(post.publishedAt).toLocaleDateString('es-AR', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
-    : '';
+  // Las guias no llevan fecha visible (material de referencia atemporal).
+  // El schema conserva igual la fecha real de publicacion.
+  const date =
+    post.publishedAt && !guide
+      ? new Date(post.publishedAt).toLocaleDateString('es-AR', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })
+      : '';
 
   if (featured) {
     return (
