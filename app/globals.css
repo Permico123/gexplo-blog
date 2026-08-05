@@ -87,3 +87,18 @@ body {
 .transition-default {
   transition: all 0.2s ease;
 }
+
+
+/* Archivo del blog: dos columnas en escritorio, apiladas en celular */
+.gx-columnas {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3rem;
+}
+
+@media (min-width: 900px) {
+  .gx-columnas {
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem 2.5rem;
+  }
+}
