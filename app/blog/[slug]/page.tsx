@@ -86,14 +86,18 @@ export default async function PostPage({ params }: Props) {
   // Un post agendado a futuro todavia no existe para el visitante.
   if (!post || !isVisible(post)) notFound();
 
-  const date = post.publishedAt
-    ? new Date(post.publishedAt).toLocaleDateString('es-AR', {
-        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-      })
-    : '';
-
   const htmlContent = renderMarkdown(post.content);
   const guide = isGuide(post);
+
+  // Las guias son material de referencia atemporal: mostrar fecha solo las envejece.
+  // En la bitacora la fecha si es parte del contenido, asi que ahi se mantiene.
+  // Ojo: esto es solo presentacion. El datePublished del schema conserva la fecha real.
+  const date =
+    post.publishedAt && !guide
+      ? new Date(post.publishedAt).toLocaleDateString('es-AR', {
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        })
+      : '';
 
   return (
     <>
