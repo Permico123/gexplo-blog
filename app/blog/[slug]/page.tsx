@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { getPostBySlug } from '@/lib/posts';
-import { isGuide } from '@/lib/types';
+import { isGuide, isVisible } from '@/lib/types';
 
 // Render dinámico: cada request consulta Supabase en tiempo real.
 // Evita el 404 cuando un post se publica después del último build.
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPostBySlug(slug);
 
-  if (!post || post.status !== 'PUBLISHED') {
+  if (!post || !isVisible(post)) {
     return { title: 'Edición no encontrada' };
   }
 
@@ -83,7 +83,8 @@ export default async function PostPage({ params }: Props) {
   const { slug } = await params;
   const post = await getPostBySlug(slug);
 
-  if (!post || post.status !== 'PUBLISHED') notFound();
+  // Un post agendado a futuro todavia no existe para el visitante.
+  if (!post || !isVisible(post)) notFound();
 
   const date = post.publishedAt
     ? new Date(post.publishedAt).toLocaleDateString('es-AR', {
