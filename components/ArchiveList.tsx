@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Post } from '@/lib/types';
+import { Post, isGuide } from '@/lib/types';
 
 export default function ArchiveList({ posts }: { posts: Post[] }) {
   if (posts.length === 0) {
@@ -71,12 +71,20 @@ export default function ArchiveList({ posts }: { posts: Post[] }) {
                     justifyContent: 'center',
                   }}
                 >
-                  <span style={{ fontSize: '0.6rem', color: '#40916C', fontWeight: '700', letterSpacing: '0.06em', lineHeight: 1 }}>
-                    SEM
-                  </span>
-                  <span style={{ fontSize: '1.1rem', color: '#1C3A2B', fontWeight: '700', lineHeight: 1 }}>
-                    {String(post.weekNumber).padStart(2, '0')}
-                  </span>
+                  {isGuide(post) ? (
+                    <span style={{ fontSize: '0.62rem', color: '#1C3A2B', fontWeight: '700', letterSpacing: '0.06em', lineHeight: 1 }}>
+                      GUÍA
+                    </span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '0.6rem', color: '#40916C', fontWeight: '700', letterSpacing: '0.06em', lineHeight: 1 }}>
+                        SEM
+                      </span>
+                      <span style={{ fontSize: '1.1rem', color: '#1C3A2B', fontWeight: '700', lineHeight: 1 }}>
+                        {String(post.weekNumber).padStart(2, '0')}
+                      </span>
+                    </>
+                  )}
                 </div>
                 {index < posts.length - 1 && (
                   <div style={{ width: '1px', flex: 1, backgroundColor: '#D8D4CC', marginTop: '0.75rem', minHeight: '20px' }} />
