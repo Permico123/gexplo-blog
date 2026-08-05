@@ -17,9 +17,43 @@ export default async function BlogPage() {
   const guias = posts.filter(isGuide);
   const bitacoras = posts.filter(p => !isGuide(p));
 
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://gexplo.com';
+  const blogSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    '@id': `${SITE_URL}/blog#blog`,
+    name: 'Laboratorio Editorial de GEXPLO',
+    description:
+      'Bitacora semanal en primera persona del CEO de GEXPLO y guias tecnicas sobre aridos, arena de fractura, hidrogeologia y trazabilidad de datos ambientales.',
+    url: `${SITE_URL}/blog`,
+    inLanguage: 'es-AR',
+    publisher: { '@id': 'https://gexplo.com/#organization' },
+    author: {
+      '@type': 'Person',
+      '@id': 'https://gexplo.com/equipo/pedro-cardoso#person',
+      name: 'Pedro Daniel Cardoso Justo',
+      jobTitle: 'Geologo - CEO de GEXPLO',
+      url: 'https://gexplo.com/equipo/pedro-cardoso',
+      sameAs: ['https://www.linkedin.com/in/pedro-cardoso-357066b9/'],
+    },
+    blogPost: posts.slice(0, 20).map(p => ({
+      '@type': 'BlogPosting',
+      '@id': `${SITE_URL}/blog/${p.slug}`,
+      headline: p.title,
+      description: p.subtitle || p.keyIdea,
+      datePublished: p.publishedAt,
+      url: `${SITE_URL}/blog/${p.slug}`,
+      keywords: p.tags.join(', '),
+    })),
+  };
+
   return (
     <>
       <Header />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogSchema) }}
+      />
       <main style={{ flex: 1 }}>
 
         {/* Page header */}
