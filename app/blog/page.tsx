@@ -3,6 +3,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ArchiveList from '@/components/ArchiveList';
 import { getPublishedPosts } from '@/lib/posts';
+import { isGuide } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,8 @@ export const metadata: Metadata = {
 
 export default async function BlogPage() {
   const posts = await getPublishedPosts();
+  const guias = posts.filter(isGuide);
+  const bitacoras = posts.filter(p => !isGuide(p));
 
   return (
     <>
@@ -60,7 +63,23 @@ export default async function BlogPage() {
 
         {/* Posts list */}
         <section style={{ maxWidth: '1100px', margin: '0 auto', padding: '3rem 2rem' }}>
-          <ArchiveList posts={posts} />
+          {guias.length > 0 && (
+            <div style={{ marginBottom: '3.5rem' }}>
+              <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', color: '#1C3A2B', marginBottom: '0.35rem' }}>
+                Guías y recursos
+              </h2>
+              <p style={{ fontSize: '0.88rem', color: '#4A6358', marginBottom: '1rem' }}>
+                Material técnico de referencia: qué exige la normativa, cómo se hace y qué mirar antes de decidir.
+              </p>
+              <ArchiveList posts={guias} />
+            </div>
+          )}
+          {guias.length > 0 && (
+            <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', color: '#1C3A2B', marginBottom: '1rem' }}>
+              Bitácora semanal
+            </h2>
+          )}
+          <ArchiveList posts={bitacoras} />
         </section>
 
       </main>
