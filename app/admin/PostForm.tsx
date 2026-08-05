@@ -10,6 +10,15 @@ interface Props {
   post?: Post;
 }
 
+// El input datetime-local trabaja en hora local; convertimos en ambos sentidos.
+function isoALocal(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function PostForm({ mode, post }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -27,6 +36,7 @@ export default function PostForm({ mode, post }: Props) {
     weekNumber: post?.weekNumber?.toString() || '',
     status: post?.status || 'DRAFT',
     contentType: post ? (isGuide(post) ? 'guia' : 'bitacora') : 'bitacora',
+    publishedAt: isoALocal(post?.publishedAt),
   });
 
   function autoSlug(title: string) {
@@ -69,7 +79,13 @@ export default function PostForm({ mode, post }: Props) {
       ],
       weekNumber: form.contentType === 'guia' ? 0 : (parseInt(form.weekNumber) || 1),
       status: form.status,
-      publishedAt: form.status === 'PUBLISHED' && !post?.publishedAt ? new Date().toISOString() : post?.publishedAt,
+      // Si hay fecha elegida se respeta (permite agendar a futuro).
+      // Si no, al publicar se sella el momento actual.
+      publishedAt: form.publishedAt
+        ? new Date(form.publishedAt).toISOString()
+        : form.status === 'PUBLISHED'
+          ? (post?.publishedAt || new Date().toISOString())
+          : post?.publishedAt,
     };
 
     let res: Response;
@@ -96,6 +112,11 @@ export default function PostForm({ mode, post }: Props) {
     }
     setLoading(false);
   }
+
+  const agendado =
+    form.status === 'PUBLISHED' &&
+    !!form.publishedAt &&
+    new Date(form.publishedAt).getTime() > Date.now();
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F8F7F4' }}>
@@ -199,6 +220,26 @@ export default function PostForm({ mode, post }: Props) {
                 <Field label="Número de semana" name="weekNumber" type="number" value={form.weekNumber} onChange={handleChange} placeholder="1" required />
               )}
               <Field label="Estado" name="status" type="select" value={form.status} onChange={handleChange} required options={[{ value: 'DRAFT', label: 'Borrador' }, { value: 'PUBLISHED', label: 'Publicado' }]} />
+            </div>
+
+            <div style={{ marginBottom: '1.25rem' }}>
+              <Field
+                label="Fecha de publicación"
+                name="publishedAt"
+                type="datetime-local"
+                value={form.publishedAt}
+                onChange={handleChange}
+                full
+              />
+              {agendado ? (
+                <p style={{ fontSize: '0.8rem', color: '#8B5A00', backgroundColor: '#FFF8E8', border: '1px solid #E8D9B0', borderRadius: '5px', padding: '0.6rem 0.85rem', margin: '-0.65rem 0 0' }}>
+                  Programado: se publica solo el {new Date(form.publishedAt).toLocaleString('es-AR', { dateStyle: 'full', timeStyle: 'short' })}. Hasta entonces no aparece en el blog.
+                </p>
+              ) : (
+                <p style={{ fontSize: '0.78rem', color: '#6B7C74', margin: '-0.65rem 0 0' }}>
+                  Dejala vacía para publicar ahora. Poné una fecha futura y el post aparece solo cuando llegue ese momento.
+                </p>
+              )}
             </div>
 
             <Field label="Título" name="title" value={form.title} onChange={handleChange} placeholder="De informes aislados a un sistema técnico auditable" required full />
