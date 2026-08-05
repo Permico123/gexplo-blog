@@ -11,6 +11,9 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Archivo de transformación',
   description: 'Todas las ediciones del Laboratorio Editorial de GEXPLO. Cada semana documenta un avance real de la transformación hacia una empresa tecnológica de geociencia basada en datos.',
+  // Fija la URL principal en gexplo.com aunque la pagina se sirva desde el subdominio
+  // (los crawlers de IA bloqueados en gexplo.com la leen desde blog.gexplo.com).
+  alternates: { canonical: 'https://gexplo.com/blog' },
 };
 
 const TOPE = 6;
