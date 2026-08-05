@@ -23,11 +23,14 @@ export default function ArchiveList({ posts }: { posts: Post[] }) {
   return (
     <div>
       {posts.map((post, index) => {
-        const date = post.publishedAt
-          ? new Date(post.publishedAt).toLocaleDateString('es-AR', {
-              day: 'numeric', month: 'long', year: 'numeric',
-            })
-          : '';
+        // Las guias no llevan fecha visible (material de referencia atemporal).
+        // El schema conserva igual la fecha real de publicacion.
+        const date =
+          post.publishedAt && !isGuide(post)
+            ? new Date(post.publishedAt).toLocaleDateString('es-AR', {
+                day: 'numeric', month: 'long', year: 'numeric',
+              })
+            : '';
 
         return (
           <Link
