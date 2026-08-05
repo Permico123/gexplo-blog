@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Post } from '@/lib/types';
+import { Post, isScheduled } from '@/lib/types';
 
 export default function AdminPostList({ posts }: { posts: Post[] }) {
   const router = useRouter();
@@ -129,12 +129,12 @@ export default function AdminPostList({ posts }: { posts: Post[] }) {
                   letterSpacing: '0.06em',
                   padding: '3px 10px',
                   borderRadius: '100px',
-                  backgroundColor: post.status === 'PUBLISHED' ? '#E8F3EC' : '#F5F0E8',
-                  color: post.status === 'PUBLISHED' ? '#2D6A4F' : '#8B7355',
-                  border: `1px solid ${post.status === 'PUBLISHED' ? '#C5DDD0' : '#D4C9B0'}`,
+                  backgroundColor: isScheduled(post) ? '#FFF8E8' : post.status === 'PUBLISHED' ? '#E8F3EC' : '#F5F0E8',
+                  color: isScheduled(post) ? '#8B5A00' : post.status === 'PUBLISHED' ? '#2D6A4F' : '#8B7355',
+                  border: `1px solid ${isScheduled(post) ? '#E8D9B0' : post.status === 'PUBLISHED' ? '#C5DDD0' : '#D4C9B0'}`,
                 }}
               >
-                {post.status === 'PUBLISHED' ? 'Publicado' : 'Borrador'}
+                {isScheduled(post) ? 'Programado' : post.status === 'PUBLISHED' ? 'Publicado' : 'Borrador'}
               </span>
             </div>
 
