@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Post } from '@/lib/types';
+import { Post, GUIDE_TAG, isGuide } from '@/lib/types';
 
 interface Props {
   mode: 'create' | 'edit';
@@ -23,9 +23,10 @@ export default function PostForm({ mode, post }: Props) {
     keyIdea: post?.keyIdea || '',
     content: post?.content || '',
     coverImage: post?.coverImage || '',
-    tags: post?.tags?.join(', ') || '',
+    tags: post?.tags?.filter(t => { const n = t.trim().toLowerCase(); return n !== 'guía' && n !== 'guia'; }).join(', ') || '',
     weekNumber: post?.weekNumber?.toString() || '',
     status: post?.status || 'DRAFT',
+    contentType: post ? (isGuide(post) ? 'guia' : 'bitacora') : 'bitacora',
   });
 
   function autoSlug(title: string) {
@@ -62,8 +63,11 @@ export default function PostForm({ mode, post }: Props) {
       keyIdea: form.keyIdea,
       content: form.content,
       coverImage: form.coverImage,
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
-      weekNumber: parseInt(form.weekNumber) || 1,
+      tags: [
+        ...form.tags.split(',').map(t => t.trim()).filter(Boolean).filter(t => { const n = t.toLowerCase(); return n !== 'guía' && n !== 'guia'; }),
+        ...(form.contentType === 'guia' ? [GUIDE_TAG] : []),
+      ],
+      weekNumber: form.contentType === 'guia' ? 0 : (parseInt(form.weekNumber) || 1),
       status: form.status,
       publishedAt: form.status === 'PUBLISHED' && !post?.publishedAt ? new Date().toISOString() : post?.publishedAt,
     };
@@ -171,7 +175,7 @@ export default function PostForm({ mode, post }: Props) {
                   borderRadius: '100px',
                 }}
               >
-                Semana {String(form.weekNumber).padStart(2, '0')}
+                {form.contentType === 'guia' ? 'Guía' : `Semana ${String(form.weekNumber).padStart(2, '0')}`}
               </span>
             </div>
             <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '1.75rem', color: '#1C3A2B', marginBottom: '0.75rem' }}>
@@ -189,8 +193,11 @@ export default function PostForm({ mode, post }: Props) {
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
-              <Field label="Número de semana" name="weekNumber" type="number" value={form.weekNumber} onChange={handleChange} placeholder="1" required />
+            <div style={{ display: 'grid', gridTemplateColumns: form.contentType === 'guia' ? '1fr 1fr' : '1fr 1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
+              <Field label="Tipo de contenido" name="contentType" type="select" value={form.contentType} onChange={handleChange} required options={[{ value: 'bitacora', label: 'Bitácora semanal' }, { value: 'guia', label: 'Guía (posicionamiento)' }]} />
+              {form.contentType !== 'guia' && (
+                <Field label="Número de semana" name="weekNumber" type="number" value={form.weekNumber} onChange={handleChange} placeholder="1" required />
+              )}
               <Field label="Estado" name="status" type="select" value={form.status} onChange={handleChange} required options={[{ value: 'DRAFT', label: 'Borrador' }, { value: 'PUBLISHED', label: 'Publicado' }]} />
             </div>
 
