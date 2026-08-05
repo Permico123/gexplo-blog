@@ -30,3 +30,16 @@ export function isGuide(post: Pick<Post, 'tags'>): boolean {
     return n === 'guía' || n === 'guia';
   });
 }
+
+// ─── Publicacion programada ────────────────────────────────────────
+// Un post con status PUBLISHED y publishedAt en el futuro queda
+// agendado: no se lista ni es accesible hasta que llega su fecha.
+export function isVisible(post: Pick<Post, 'status' | 'publishedAt'>, now: Date = new Date()): boolean {
+  if (post.status !== 'PUBLISHED') return false;
+  if (!post.publishedAt) return true;
+  return new Date(post.publishedAt).getTime() <= now.getTime();
+}
+
+export function isScheduled(post: Pick<Post, 'status' | 'publishedAt'>, now: Date = new Date()): boolean {
+  return post.status === 'PUBLISHED' && !!post.publishedAt && new Date(post.publishedAt).getTime() > now.getTime();
+}
