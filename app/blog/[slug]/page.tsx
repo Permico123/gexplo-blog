@@ -286,12 +286,21 @@ export default async function PostPage({ params }: Props) {
               description: post.subtitle || post.keyIdea,
               datePublished: post.publishedAt,
               dateModified: post.updatedAt,
-              author: { '@type': 'Organization', name: 'GEXPLO', url: SITE_URL },
-              publisher: {
-                '@type': 'Organization',
-                name: 'GEXPLO',
-                url: SITE_URL,
+              // Mismo @id que la ficha del equipo en gexplo.com: enlaza al autor
+              // del blog con el CEO de GEXPLO como una unica entidad.
+              author: {
+                '@type': 'Person',
+                '@id': 'https://gexplo.com/equipo/pedro-cardoso#person',
+                name: 'Pedro Daniel Cardoso Justo',
+                jobTitle: 'Geologo - CEO de GEXPLO',
+                url: 'https://gexplo.com/equipo/pedro-cardoso',
+                sameAs: ['https://www.linkedin.com/in/pedro-cardoso-357066b9/'],
+                worksFor: { '@id': 'https://gexplo.com/#organization' },
               },
+              publisher: { '@id': 'https://gexplo.com/#organization' },
+              isPartOf: { '@id': `${SITE_URL}/blog#blog` },
+              mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE_URL}/blog/${post.slug}` },
+              inLanguage: 'es-AR',
               url: `${SITE_URL}/blog/${post.slug}`,
               keywords: post.tags.join(', '),
             }),
