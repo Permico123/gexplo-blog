@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Post } from '@/lib/types';
+import { Post, isGuide } from '@/lib/types';
 
 interface PostCardProps {
   post: Post;
@@ -9,6 +9,7 @@ interface PostCardProps {
 }
 
 export default function PostCard({ post, featured = false }: PostCardProps) {
+  const guide = isGuide(post);
   const date = post.publishedAt
     ? new Date(post.publishedAt).toLocaleDateString('es-AR', {
         day: 'numeric',
@@ -53,7 +54,7 @@ export default function PostCard({ post, featured = false }: PostCardProps) {
                 borderRadius: '100px',
               }}
             >
-              Semana {String(post.weekNumber).padStart(2, '0')}
+              {guide ? 'Guía' : `Semana ${String(post.weekNumber).padStart(2, '0')}`}
             </span>
             {date && (
               <span style={{ fontSize: '0.78rem', color: '#6B7C74' }}>{date}</span>
@@ -171,7 +172,7 @@ export default function PostCard({ post, featured = false }: PostCardProps) {
               borderRadius: '100px',
             }}
           >
-            Sem. {String(post.weekNumber).padStart(2, '0')}
+            {guide ? 'Guía' : `Sem. ${String(post.weekNumber).padStart(2, '0')}`}
           </span>
           {date && <span style={{ fontSize: '0.73rem', color: '#6B7C74' }}>{date}</span>}
         </div>
