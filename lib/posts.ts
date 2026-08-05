@@ -11,7 +11,7 @@
  */
 import { createAdminClient } from './supabase';
 import { getDb } from './db';
-import { Post, PostInput, PostStatus } from './types';
+import { Post, PostInput, PostStatus, isVisible } from './types';
 
 // ─── Row → Post mapper ─────────────────────────────────────────────────────────────────────────────
 
@@ -44,7 +44,8 @@ export async function getAllPosts(): Promise<Post[]> {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []).map(rowToPost);
+    // Excluye los programados a futuro: aparecen solos al llegar su fecha.
+    return (data ?? []).map(rowToPost).filter(p => isVisible(p));
   } catch (err) {
     console.error('[posts] getAllPosts error:', err);
     return [];
@@ -60,7 +61,8 @@ export async function getPublishedPosts(): Promise<Post[]> {
       .eq('status', 'PUBLISHED')
       .order('published_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []).map(rowToPost);
+    // Excluye los programados a futuro: aparecen solos al llegar su fecha.
+    return (data ?? []).map(rowToPost).filter(p => isVisible(p));
   } catch (err) {
     console.error('[posts] getPublishedPosts error:', err);
     return [];
