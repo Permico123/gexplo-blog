@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
+
+// Mismo Google Tag que el resto de gexplo.com, para que el blog y el sitio
+// reporten a una unica propiedad de GA4 (G-TH5D494YJD) en vez de medirse aparte.
+const GOOGLE_TAG = 'GT-NBJMN4RR';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.gexplo.com';
 // Las imágenes OG se generan siempre en el subdominio (app en Vercel).
@@ -61,6 +66,16 @@ export default function RootLayout({
     <html lang="es" style={{ height: '100%' }}>
       <body style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
         {children}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG}`}
+          strategy="afterInteractive"
+        />
+        <Script id="gexplo-gtag" strategy="afterInteractive">
+          {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GOOGLE_TAG}');`}
+        </Script>
       </body>
     </html>
   );
