@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import Link from 'next/link';
 import ArchiveList from '@/components/ArchiveList';
 import { getPublishedPosts } from '@/lib/posts';
 import { isGuide } from '@/lib/types';
@@ -12,10 +13,30 @@ export const metadata: Metadata = {
   description: 'Todas las ediciones del Laboratorio Editorial de GEXPLO. Cada semana documenta un avance real de la transformación hacia una empresa tecnológica de geociencia basada en datos.',
 };
 
-export default async function BlogPage() {
+const TOPE = 6;
+
+const enlaceVerTodas: React.CSSProperties = {
+  display: 'inline-block',
+  marginTop: '1rem',
+  fontSize: '0.85rem',
+  fontWeight: 600,
+  color: '#2D6A4F',
+  textDecoration: 'none',
+  borderBottom: '1px solid #C5DDD0',
+  paddingBottom: '2px',
+};
+
+interface Props {
+  searchParams: Promise<{ ver?: string }>;
+}
+
+export default async function BlogPage({ searchParams }: Props) {
+  const { ver } = await searchParams;
+  const verTodo = ver === 'todo';
   const posts = await getPublishedPosts();
   const guias = posts.filter(isGuide);
   const bitacoras = posts.filter(p => !isGuide(p));
+  const hayDosSecciones = guias.length > 0 && bitacoras.length > 0;
 
   const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://gexplo.com';
   const blogSchema = {
@@ -95,25 +116,43 @@ export default async function BlogPage() {
           </div>
         </section>
 
-        {/* Posts list */}
+        {/* Archivo en dos columnas: lo ultimo de cada tipo queda arriba */}
         <section style={{ maxWidth: '1100px', margin: '0 auto', padding: '3rem 2rem' }}>
-          {guias.length > 0 && (
-            <div style={{ marginBottom: '3.5rem' }}>
-              <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', color: '#1C3A2B', marginBottom: '0.35rem' }}>
-                Guías y recursos
-              </h2>
-              <p style={{ fontSize: '0.88rem', color: '#4A6358', marginBottom: '1rem' }}>
-                Material técnico de referencia: qué exige la normativa, cómo se hace y qué mirar antes de decidir.
-              </p>
-              <ArchiveList posts={guias} />
+          {hayDosSecciones ? (
+            <div className="gx-columnas">
+              <div>
+                <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', color: '#1C3A2B', marginBottom: '0.35rem' }}>
+                  Guías y recursos
+                </h2>
+                <p style={{ fontSize: '0.88rem', color: '#4A6358', marginBottom: '1rem' }}>
+                  Material técnico de referencia: qué exige la normativa, cómo se hace y qué mirar antes de decidir.
+                </p>
+                <ArchiveList posts={verTodo ? guias : guias.slice(0, TOPE)} />
+                {!verTodo && guias.length > TOPE && (
+                  <Link href="/blog?ver=todo" style={enlaceVerTodas}>
+                    Ver las {guias.length} guías →
+                  </Link>
+                )}
+              </div>
+
+              <div>
+                <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', color: '#1C3A2B', marginBottom: '0.35rem' }}>
+                  Bitácora semanal
+                </h2>
+                <p style={{ fontSize: '0.88rem', color: '#4A6358', marginBottom: '1rem' }}>
+                  El proceso real de la consultora, semana a semana y en primera persona.
+                </p>
+                <ArchiveList posts={verTodo ? bitacoras : bitacoras.slice(0, TOPE)} />
+                {!verTodo && bitacoras.length > TOPE && (
+                  <Link href="/blog?ver=todo" style={enlaceVerTodas}>
+                    Ver las {bitacoras.length} ediciones →
+                  </Link>
+                )}
+              </div>
             </div>
+          ) : (
+            <ArchiveList posts={posts} />
           )}
-          {guias.length > 0 && (
-            <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', color: '#1C3A2B', marginBottom: '1rem' }}>
-              Bitácora semanal
-            </h2>
-          )}
-          <ArchiveList posts={bitacoras} />
         </section>
 
       </main>
