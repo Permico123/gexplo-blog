@@ -65,6 +65,12 @@ test('renderiza imagenes con lazy loading', () => {
   assert.match(out, /<img src="https:\/\/cdn\.ejemplo\.com\/p\.jpg" alt="Un pozo" loading="lazy" decoding="async">/);
 });
 
+test('imagen markdown en linea propia no deja cierre de parrafo huerfano', () => {
+  const out = renderMarkdown('![Foto](/foto.jpg)\n\nParrafo siguiente.');
+  assert.match(out, /<img src="\/foto\.jpg" alt="Foto" loading="lazy" decoding="async">/);
+  assert.doesNotMatch(out, /<img[^>]*>\s*<\/p>/);
+});
+
 test('imagen con esquema peligroso deja solo el alt', () => {
   const out = renderMarkdown(`![texto alt](${JS}alert(1))`);
   assert.doesNotMatch(out, /<img/);
