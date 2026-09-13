@@ -53,5 +53,8 @@ export function renderMarkdown(content: string): string {
     .replace(/`(.+?)`/g, '<code>$1</code>')
     // Limpieza de markup invalido preexistente alrededor de elementos de bloque.
     .replace(/<p>\s*(<\/?(?:h[234]|ul|ol|li|blockquote|hr)\b)/g, '$1')
-    .replace(/(<\/(?:h[234]|ul|ol|blockquote)>|<hr>)\s*<\/p>/g, '$1');
+    .replace(/(<\/(?:h[234]|ul|ol|blockquote)>|<hr>)\s*<\/p>/g, '$1')
+    // Una imagen Markdown en linea propia puede quedar seguida por </p><p> tras
+    // convertir los saltos dobles. Elimina solo ese cierre de parrafo huerfano.
+    .replace(/(<img\b[^>]*>)\s*<\/p>/g, '$1');
 }
